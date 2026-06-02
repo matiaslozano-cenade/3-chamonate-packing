@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Rentabilidad PACKING - Chamonate</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  .tab-btn { transition: all 0.2s; }
+  .tab-btn:hover { background: rgba(255,255,255,0.08); }
+  .tab-btn.active { background: #F8F9FC; color: #1f2937; }
+  .pill { transition: all 0.2s; cursor: pointer; }
+  .pill.active { background: #c2410c; color: #fff; box-shadow: 0 2px 8px rgba(194,65,12,0.3); }
+  .card { background: #fff; border-radius: 1rem; border: 1px solid #f3f4f6; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06); }
+  .row-hover:hover { background: rgba(194,65,12,0.04); cursor: pointer; }
+  canvas { max-width: 100%; }
+  [data-tab] { display: none; }
+  [data-tab].visible { display: block; }
+  .breadcrumb-item { transition: all 0.2s; }
+  .breadcrumb-item:hover { color: #c2410c; }
+  .level-card { cursor: pointer; transition: all 0.2s; }
+  .level-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(194,65,12,0.15); }
+  #loading-overlay { position:fixed;inset:0;background:rgba(248,249,252,0.95);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px; }
+  .spinner { width:40px;height:40px;border:4px solid #fed7aa;border-top-color:#c2410c;border-radius:50%;animation:spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #mov-panel { display:none; }
+  #mov-panel.visible { display:block; }
+  .dl-cell { cursor: pointer; }
+  .dl-cell:hover { background: rgba(194,65,12,0.07) !important; }
+  .dl-icon { opacity: 0.35; font-size: 0.68em; margin-left: 2px; }
+</style>
+</head>
+<body style="background:#F8F9FC">
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <p class="text-sm font-semibold text-gray-500">Cargando datos desde Supabase...</p>
+</div>
+
+<a href="https://3-chamonate-inicio.vercel.app" style="position:fixed;top:16px;left:16px;z-index:9999;display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(255,255,255,0.95);color:#c2410c;border:1px solid rgba(194,65,12,0.2);border-radius:9999px;font-family:'Inter',system-ui,sans-serif;font-size:13px;font-weight:600;text-decoration:none;box-shadow:0 4px 12px rgba(0,0,0,0.15);backdrop-filter:blur(8px);transition:all 0.2s" onmouseover="this.style.background='#fff';this.style.transform='translateX(-2px)'" onmouseout="this.style.background='rgba(255,255,255,0.95)';this.style.transform='translateX(0)'">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+  Portal Chamonate
+</a>
+
+<div style="background:linear-gradient(135deg,#431407 0%,#c2410c 50%,#9a3412 100%)">
+  <div class="max-w-7xl mx-auto px-6 pt-5 pb-3">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-white text-lg font-extrabold tracking-tight">Proyecto Chamonate · Rentabilidad PACKING</h1>
+        <p class="text-orange-300/60 text-xs font-medium">Fuente: Libro Mayor</p>
+      </div>
+      <span class="bg-orange-500/20 text-orange-300 text-xs font-bold px-3 py-1.5 rounded-full border border-orange-400/30">📦 Packing</span>
+    </div>
+    <div class="flex gap-1 mt-4" id="tabs">
+      <button data-tabid="general"  class="tab-btn active flex items-center gap-1.5 px-4 py-2 rounded-t-xl text-xs font-semibold">📊 General</button>
+      <button data-tabid="mensual"  class="tab-btn text-orange-200/50 flex items-center gap-1.5 px-4 py-2 rounded-t-xl text-xs font-semibold">📅 Mensual</button>
+      <button data-tabid="linea"    class="tab-btn text-orange-200/50 flex items-center gap-1.5 px-4 py-2 rounded-t-xl text-xs font-semibold">🍒 Por Línea</button>
+      <button data-tabid="centro"   class="tab-btn text-orange-200/50 flex items-center gap-1.5 px-4 py-2 rounded-t-xl text-xs font-semibold">🔧 Por Centro</button>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+
+  <!-- FILTROS GLOBALES -->
+  <div class="card sticky top-0 z-10" style="border-color:#fed7aa">
+    <div class="p-3 flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-4 flex-wrap">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-gray-500">📅 Año:</span>
+          <div class="flex gap-1.5" id="year-pills-global"></div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-gray-500">🗓 Mes:</span>
+          <select id="month-select-global" class="bg-white border border-gray-200 rounded-full px-3 py-1 text-xs font-semibold text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-200"></select>
+        </div>
+      </div>
+      <div id="breadcrumb" class="text-xs text-gray-400 font-medium flex items-center gap-2"><span>Inicio</span></div>
+    </div>
+  </div>
+
+  <!-- GENERAL -->
+  <div data-tab="general" class="visible space-y-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpis-general"></div>
+    <div class="card"><div class="p-5 overflow-x-auto">
+      <h3 class="text-sm font-bold text-gray-700 mb-4">Resumen Comparativo Anual</h3>
+      <table class="w-full text-sm" id="tabla-anual"></table>
+    </div></div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="card lg:col-span-2"><div class="p-5">
+        <h3 class="text-sm font-bold text-gray-700 mb-1">Ingresos vs Costos · Resultado</h3>
+        <p class="text-xs text-gray-400 mb-4">Comparativa por año · Libro Mayor</p>
+        <canvas id="chart-anual" height="160"></canvas>
+      </div></div>
+      <div class="card"><div class="p-5">
+        <h3 class="text-sm font-bold text-gray-700 mb-1">Margen %</h3>
+        <p class="text-xs text-gray-400 mb-4">% sobre ingresos por año</p>
+        <canvas id="chart-margen" height="200"></canvas>
+      </div></div>
+    </div>
+    <div class="card"><div class="p-5">
+      <h3 class="text-sm font-bold text-gray-700 mb-1">Resultado por Línea</h3>
+      <p class="text-xs text-gray-400 mb-4" id="ubic-ranking-subtitulo">Año seleccionado · Click en barra para ver detalle</p>
+      <canvas id="chart-lineas" height="220"></canvas>
+    </div></div>
+  </div>
+
+  <!-- MENSUAL -->
+  <div data-tab="mensual" class="space-y-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpis-mensual"></div>
+    <div class="card"><div class="p-5">
+      <h3 class="text-sm font-bold text-gray-700 mb-1">Evolución mensual · Ingresos · Costos · Resultado</h3>
+      <p class="text-xs text-gray-400 mb-4" id="mensual-subtitulo">Año seleccionado</p>
+      <canvas id="chart-mensual" height="140"></canvas>
+    </div></div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="card"><div class="p-5">
+        <h3 class="text-sm font-bold text-gray-700 mb-4">Margen mensual %</h3>
+        <canvas id="chart-margen-mensual" height="200"></canvas>
+      </div></div>
+      <div class="card"><div class="p-5 overflow-x-auto">
+        <h3 class="text-sm font-bold text-gray-700 mb-4">Tabla mensual</h3>
+        <table class="w-full text-xs" id="tabla-mensual"></table>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- POR LÍNEA -->
+  <div data-tab="linea" class="space-y-6">
+    <div id="linea-summary"></div>
+    <div id="linea-detail"></div>
+  </div>
+
+  <!-- POR CENTRO -->
+  <div data-tab="centro" class="space-y-6">
+    <div class="flex flex-wrap items-center justify-end gap-4">
+      <select id="centro-select" class="bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-200 shadow-sm" style="min-width:380px"></select>
+    </div>
+    <div id="centro-content"></div>
+    <div id="mov-panel" class="card">
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-bold text-gray-700" id="mov-title">Movimientos Libro Mayor</h3>
+            <p class="text-xs text-gray-400 mt-0.5" id="mov-subtitle"></p>
+          </div>
+          <button id="mov-close" class="text-gray-400 hover:text-gray-600 text-lg font-bold px-2">✕</button>
+        </div>
+        <div id="mov-loading" class="text-center py-8 text-sm text-gray-400">Cargando movimientos...</div>
+        <div class="overflow-x-auto" id="mov-table-wrap" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center py-6 border-t border-gray-100 mt-4">
+    <p class="text-xs text-gray-400">Dashboard Rentabilidad Packing · Proyecto Chamonate · Fuente: Libro Mayor Supabase</p>
+  </div>
+</div>
+
+<script>
+const SUPA_URL = 'https://wjbwccacjdkuejcriode.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndqYndjY2FjamRrdWVqY3Jpb2RlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5ODY0ODksImV4cCI6MjA5MzU2MjQ4OX0.ZA2zLzyvs0sRRn9GcHYibkUrjT_ytEOij38-P0vWOuo';
+const db = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+
+const MESES = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const LINEA_COLOR = {
+  'Cerezas':'#dc2626',
+  'Cítricos':'#f59e0b',
+  'Manzanas':'#059669',
+  'Carozos · Uva · Frigorífico':'#7c3aed',
+  'General Packing':'#6b7280',
+  'Inversiones / Construcción':'#0369a1'
+};
+const PRIMARY = '#c2410c';
+const DEFAULT_COLOR = '#94A3B8';
+
+let LINEAS_ORDEN = [];
+let DATA = null;
+let state = { year: 2025, month: 0, selectedLinea: '', selectedCC: '' };
+let charts = {};
+
+const fCLP = v => new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',minimumFractionDigits:0}).format(v);
+const fM = v => { const a=Math.abs(v),s=v<0?'-':''; if(a>=1e9) return s+'$'+(a/1e9).toFixed(1).replace('.',',')+' B'; if(a>=1e6) return s+'$'+(a/1e6).toFixed(1).replace('.',',')+' M'; if(a>=1e3) return s+'$'+(a/1e3).toFixed(0)+' K'; return s+'$'+a; };
+const fPct = v => v.toFixed(1).replace('.',',')+'%';
+const yLabel = y => String(y);
+const calc = (ing, costo) => { const r = ing - costo; const m = ing > 0 ? r/ing*100 : (costo > 0 ? -100 : 0); return { resultado: r, margen: Math.round(m*10)/10 }; };
+
+function kpiHTML(label, value, sub, danger) {
+  return '<div class="card"><div class="p-5">' +
+    '<p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 truncate">' + label + '</p>' +
+    '<p class="text-xl font-extrabold tracking-tight truncate ' + (danger?'text-red-500':'text-gray-900') + '" style="font-variant-numeric:tabular-nums;letter-spacing:-0.02em">' + value + '</p>' +
+    (sub ? '<p class="text-xs text-gray-400 mt-2.5 truncate">' + sub + '</p>' : '') +
+    '</div></div>';
+}
+
+async function initData() {
+  const [ccRes, grupoRes, catRes] = await Promise.all([
+    db.from('v_3_pack_cc').select('*'),
+    db.from('v_3_pack_grupo').select('*'),
+    db.from('3_chamonate_centros_costo').select('cod,nombre,grupo').eq('linea_negocio','packing')
+  ]);
+
+  if (ccRes.error || grupoRes.error || catRes.error) {
+    document.getElementById('loading-overlay').innerHTML = '<p class="text-red-500 font-semibold">Error cargando datos. Revisa la consola.</p>';
+    console.error(ccRes.error, grupoRes.error, catRes.error);
+    return;
+  }
+
+  const ccRows = ccRes.data, grupoRows = grupoRes.data, catRows = catRes.data;
+  const catalogo = catRows.map(r => ({ cod: r.cod, nombre: r.nombre, grupo: r.grupo }));
+  const lineasSet = new Set(catRows.map(r => r.grupo).filter(Boolean));
+  LINEAS_ORDEN = [...lineasSet].sort();
+
+  const ccAnnMap = {};
+  ccRows.forEach(r => {
+    const k = r.cod + '-' + r.ano;
+    if (!ccAnnMap[k]) ccAnnMap[k] = { cod:r.cod, nombre:r.nombre, grupo:r.grupo, ano:+r.ano, ingreso:0, costo:0 };
+    ccAnnMap[k].ingreso += +r.ingresos; ccAnnMap[k].costo += +r.costos;
+  });
+  const resumen_cc = Object.values(ccAnnMap).map(r => ({ ...r, ...calc(r.ingreso, r.costo) }));
+
+  const resumen_cc_mes = ccRows.map(r => {
+    const ing = +r.ingresos, cos = +r.costos;
+    return { cod:r.cod, nombre:r.nombre, grupo:r.grupo, ano:+r.ano, mes:+r.mes, ingreso:ing, costo:cos, ...calc(ing, cos) };
+  });
+
+  const mensMap = {};
+  resumen_cc_mes.forEach(r => {
+    const k = r.ano + '-' + r.mes;
+    if (!mensMap[k]) mensMap[k] = { ano:r.ano, mes:r.mes, ingreso:0, costo:0 };
+    mensMap[k].ingreso += r.ingreso; mensMap[k].costo += r.costo;
+  });
+  const resumen_mensual = Object.values(mensMap).map(r => ({ ...r, ...calc(r.ingreso, r.costo) })).sort((a,b)=>a.ano-b.ano||a.mes-b.mes);
+
+  const anoMap = {};
+  resumen_mensual.forEach(r => {
+    if (!anoMap[r.ano]) anoMap[r.ano] = { ano:r.ano, ingreso:0, costo:0 };
+    anoMap[r.ano].ingreso += r.ingreso; anoMap[r.ano].costo += r.costo;
+  });
+  const resumen_anual = Object.values(anoMap).map(r => ({ ...r, ...calc(r.ingreso, r.costo) })).sort((a,b)=>a.ano-b.ano);
+
+  const grpAnnMap = {};
+  grupoRows.forEach(r => {
+    const k = r.grupo + '-' + r.ano;
+    if (!grpAnnMap[k]) grpAnnMap[k] = { grupo:r.grupo, ano:+r.ano, ingreso:0, costo:0 };
+    grpAnnMap[k].ingreso += +r.ingresos; grpAnnMap[k].costo += +r.costos;
+  });
+  const resumen_linea = Object.values(grpAnnMap).map(r => ({ ...r, ...calc(r.ingreso, r.costo) }));
+
+  DATA = { resumen_anual, resumen_mensual, resumen_linea, resumen_cc, resumen_cc_mes, catalogo };
+  if (resumen_anual.length) state.year = resumen_anual[resumen_anual.length - 1].ano;
+
+  document.getElementById('loading-overlay').style.display = 'none';
+  makeGlobalPills(); makeMonthSelect(); renderGeneral();
+}
+
+function getAvailableYears() { return [...new Set(DATA.resumen_anual.map(r => r.ano))].sort(); }
+function getAvailableMonths(y) { return [...new Set(DATA.resumen_mensual.filter(r => r.ano === y && (r.ingreso !== 0 || r.costo !== 0)).map(r => r.mes))].sort((a,b)=>a-b); }
+
+function getFilteredAnual() {
+  if (state.month === 0) return DATA.resumen_anual.find(r => r.ano === state.year) || {ingreso:0,costo:0,resultado:0,margen:0};
+  return DATA.resumen_mensual.find(r => r.ano === state.year && r.mes === state.month) || {ingreso:0,costo:0,resultado:0,margen:0};
+}
+function getFilteredCC() {
+  if (state.month === 0) return DATA.resumen_cc.filter(r => r.ano === state.year);
+  return DATA.resumen_cc_mes.filter(r => r.ano === state.year && r.mes === state.month);
+}
+function getFilteredLinea() {
+  if (state.month === 0) return DATA.resumen_linea.filter(r => r.ano === state.year);
+  const acc = {};
+  LINEAS_ORDEN.forEach(u => acc[u] = {ingreso:0, costo:0});
+  DATA.resumen_cc_mes.filter(r => r.ano === state.year && r.mes === state.month).forEach(r => {
+    if (acc[r.grupo]) { acc[r.grupo].ingreso += r.ingreso; acc[r.grupo].costo += r.costo; }
+  });
+  return LINEAS_ORDEN.map(u => { const x = acc[u] || {ingreso:0,costo:0}; return { grupo:u, ano:state.year, ingreso:x.ingreso, costo:x.costo, ...calc(x.ingreso, x.costo) }; });
+}
+
+function periodoLabel() { return state.month === 0 ? yLabel(state.year) : MESES[state.month] + ' ' + state.year; }
+
+function makeGlobalPills() {
+  const c = document.getElementById('year-pills-global'); c.innerHTML = '';
+  getAvailableYears().forEach(y => {
+    const b = document.createElement('button');
+    b.className = 'pill px-4 py-1.5 rounded-full text-xs font-semibold ' + (y === state.year ? 'active' : 'bg-gray-100 text-gray-500');
+    b.textContent = yLabel(y);
+    b.addEventListener('click', () => { state.year = y; state.month = 0; makeGlobalPills(); makeMonthSelect(); rerender(); });
+    c.appendChild(b);
+  });
+}
+function makeMonthSelect() {
+  const sel = document.getElementById('month-select-global');
+  const meses = getAvailableMonths(state.year);
+  let opts = '<option value="0">Todo el año</option>';
+  meses.forEach(m => { opts += '<option value="' + m + '"' + (m === state.month ? ' selected' : '') + '>' + MESES[m] + '</option>'; });
+  sel.innerHTML = opts; sel.value = state.month;
+  sel.onchange = () => { state.month = +sel.value; rerender(); };
+}
+function rerender() { const t = document.querySelector('[data-tab].visible')?.dataset.tab || 'general'; switchTab(t); }
+
+function switchTab(id) {
+  document.querySelectorAll('[data-tab]').forEach(el => el.classList.remove('visible'));
+  document.querySelector('[data-tab="' + id + '"]').classList.add('visible');
+  document.querySelectorAll('#tabs .tab-btn').forEach(b => {
+    if (b.dataset.tabid === id) { b.classList.add('active'); b.classList.remove('text-orange-200/50'); }
+    else { b.classList.remove('active'); b.classList.add('text-orange-200/50'); }
+  });
+  updateBreadcrumb(id);
+  if (id === 'general')  renderGeneral();
+  if (id === 'mensual')  renderMensual();
+  if (id === 'linea')    renderLinea();
+  if (id === 'centro')   renderCentro();
+}
+document.querySelectorAll('#tabs .tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tabid)));
+
+function updateBreadcrumb(tabId) {
+  const map = {general:'General', mensual:'Mensual', linea:'Por Línea', centro:'Por Centro'};
+  let parts = ['<span class="breadcrumb-item">Inicio</span>'];
+  parts.push('<span class="text-gray-300">→</span><span class="breadcrumb-item font-semibold text-gray-600">' + (map[tabId]||tabId) + '</span>');
+  if (tabId === 'linea' && state.selectedLinea) parts.push('<span class="text-gray-300">→</span><span class="font-semibold" style="color:#c2410c">' + state.selectedLinea + '</span>');
+  if (tabId === 'centro' && state.selectedCC) {
+    const m = DATA.catalogo.find(x => x.cod === state.selectedCC);
+    if (m) parts.push('<span class="text-gray-300">→</span><span class="font-semibold" style="color:#c2410c">' + m.nombre + '</span>');
+  }
+  document.getElementById('breadcrumb').innerHTML = parts.join(' ');
+}
+
+// =========== GENERAL ===========
+function renderGeneral() {
+  const ra = DATA.resumen_anual;
+  document.getElementById('ubic-ranking-subtitulo').textContent = periodoLabel() + ' · Click en barra para ver detalle';
+  const pd = getFilteredAnual();
+  const pdCC = getFilteredCC().filter(c => c.ingreso !== 0 || c.costo !== 0);
+  document.getElementById('kpis-general').innerHTML =
+    kpiHTML('Ingresos ' + periodoLabel(), fM(pd.ingreso), pdCC.length + ' centros activos') +
+    kpiHTML('Costos ' + periodoLabel(), fM(pd.costo), 'Operativos directos', true) +
+    kpiHTML('Resultado ' + periodoLabel(), fM(pd.resultado), 'Margen: ' + fPct(pd.margen), pd.resultado < 0) +
+    kpiHTML('CC activos', String(pdCC.length), pdCC.filter(c=>c.resultado>0).length + ' rentables · ' + pdCC.filter(c=>c.resultado<0).length + ' en pérdida');
+
+  let html = '<thead><tr><th class="py-2 px-3 text-left text-xs font-bold uppercase text-gray-400 border-b-2 border-gray-100"></th>';
+  ra.forEach(r => { html += '<th class="py-2 px-3 text-right text-xs font-bold uppercase text-gray-400 border-b-2 border-gray-100">' + yLabel(r.ano) + '</th>'; });
+  html += '</tr></thead><tbody>';
+  [{l:'Ingresos',k:'ingreso',c:'text-blue-700',fmt:fCLP,dl:'ingresos'},{l:'Costos operativos',k:'costo',c:'text-red-500',fmt:fCLP,dl:'costos'},{l:'Resultado',k:'resultado',c:'',fmt:fCLP,dyn:true,bold:true,sep:true},{l:'Margen %',k:'margen',c:'',fmt:fPct,dyn:true,bold:true}].forEach(r => {
+    html += '<tr class="border-b border-gray-50' + (r.sep?' border-t-2 border-t-gray-200':'') + '">';
+    html += '<td class="py-2 px-3 text-sm ' + (r.bold?'font-bold':'font-medium') + ' text-gray-700">' + r.l + (r.dl?' <span class="dl-icon">📥</span>':'') + '</td>';
+    ra.forEach(rec => {
+      const v = rec[r.k];
+      const color = r.dyn ? (v >= 0 ? 'text-emerald-600' : 'text-red-500') : (r.c || 'text-gray-700');
+      if (r.dl) {
+        html += '<td class="py-2 px-3 text-right font-medium ' + color + ' dl-cell" title="Descargar CSV · ' + r.l + ' ' + rec.ano + '" onclick="dlClick(\'' + r.dl + '\',' + rec.ano + ',0,null,null)">' + r.fmt(v) + '</td>';
+      } else {
+        html += '<td class="py-2 px-3 text-right ' + (r.bold?'font-bold':'font-medium') + ' ' + color + '" style="font-variant-numeric:tabular-nums">' + r.fmt(v) + '</td>';
+      }
+    });
+    html += '</tr>';
+  });
+  document.getElementById('tabla-anual').innerHTML = html + '</tbody>';
+
+  if (charts.anual) charts.anual.destroy();
+  charts.anual = new Chart(document.getElementById('chart-anual'), {
+    type:'bar',
+    data:{labels:ra.map(r=>yLabel(r.ano)),datasets:[
+      {label:'Ingresos',data:ra.map(r=>r.ingreso),backgroundColor:PRIMARY,borderRadius:6},
+      {label:'Costos',data:ra.map(r=>r.costo),backgroundColor:'#EF4444',borderRadius:6},
+      {label:'Resultado',data:ra.map(r=>r.resultado),type:'line',borderColor:'#F59E0B',backgroundColor:'#F59E0B',pointRadius:6,pointBackgroundColor:'#F59E0B',borderWidth:3,fill:false},
+    ]},
+    options:{responsive:true,plugins:{tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+fM(ctx.raw)}},legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:11,weight:600}}}},scales:{y:{ticks:{callback:v=>fM(v)},grid:{color:'#E2E8F0'}},x:{grid:{display:false},ticks:{font:{size:12,weight:600}}}}}
+  });
+
+  if (charts.margen) charts.margen.destroy();
+  charts.margen = new Chart(document.getElementById('chart-margen'), {
+    type:'bar',
+    data:{labels:ra.map(r=>yLabel(r.ano)),datasets:[{label:'Margen %',data:ra.map(r=>r.margen),backgroundColor:ra.map(r=>r.margen>=0?'#10B981':'#EF4444'),borderRadius:6}]},
+    options:{responsive:true,plugins:{tooltip:{callbacks:{label:ctx=>fPct(ctx.raw)}},legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'%'},grid:{color:'#E2E8F0'}},x:{grid:{display:false}}}}
+  });
+
+  if (charts.lineas) charts.lineas.destroy();
+  const lineaTotals = {};
+  LINEAS_ORDEN.forEach(u => lineaTotals[u] = {ing:0,costo:0,res:0});
+  getFilteredLinea().forEach(r => { if (lineaTotals[r.grupo]) { lineaTotals[r.grupo].ing += r.ingreso; lineaTotals[r.grupo].costo += r.costo; lineaTotals[r.grupo].res += r.resultado; } });
+  const labelsL = LINEAS_ORDEN.filter(u => lineaTotals[u] && (lineaTotals[u].ing !== 0 || lineaTotals[u].costo !== 0));
+  charts.lineas = new Chart(document.getElementById('chart-lineas'), {
+    type:'bar',
+    data:{labels:labelsL,datasets:[
+      {label:'Ingresos',data:labelsL.map(u=>lineaTotals[u].ing),backgroundColor:PRIMARY,borderRadius:4},
+      {label:'Costos',data:labelsL.map(u=>lineaTotals[u].costo),backgroundColor:'#EF4444',borderRadius:4},
+      {label:'Resultado',data:labelsL.map(u=>lineaTotals[u].res),type:'line',borderColor:'#F59E0B',pointRadius:6,pointBackgroundColor:'#F59E0B',borderWidth:3,fill:false},
+    ]},
+    options:{responsive:true,onClick:(e,els)=>{ if(els.length){ state.selectedLinea=labelsL[els[0].index]; switchTab('linea'); }},plugins:{tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+fM(ctx.raw)}},legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:11,weight:600}}}},scales:{y:{ticks:{callback:v=>fM(v)},grid:{color:'#E2E8F0'}},x:{grid:{display:false},ticks:{font:{size:11,weight:600}}}}}
+  });
+}
+
+// =========== MENSUAL ===========
+function renderMensual() {
+  const y = state.year;
+  const meses = DATA.resumen_mensual.filter(r => r.ano === y).sort((a,b) => a.mes - b.mes);
+  document.getElementById('mensual-subtitulo').textContent = yLabel(y) + ' · ' + meses.length + ' meses con datos';
+  const ti = meses.reduce((s,r)=>s+r.ingreso,0), tc = meses.reduce((s,r)=>s+r.costo,0);
+  const tr = ti - tc, tm = ti > 0 ? tr/ti*100 : 0;
+  const mejor = meses.length ? meses.reduce((a,b)=>a.resultado>b.resultado?a:b) : null;
+  document.getElementById('kpis-mensual').innerHTML =
+    kpiHTML('Ingresos ' + yLabel(y), fM(ti), meses.length + ' meses') +
+    kpiHTML('Costos ' + yLabel(y), fM(tc), '', true) +
+    kpiHTML('Resultado ' + yLabel(y), fM(tr), 'Margen: ' + fPct(tm), tr < 0) +
+    kpiHTML('Mejor mes', mejor ? MESES[mejor.mes] : '-', mejor ? fM(mejor.resultado) : '');
+
+  const labels = meses.map(r => MESES[r.mes]);
+  if (charts.mensual) charts.mensual.destroy();
+  charts.mensual = new Chart(document.getElementById('chart-mensual'), {
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Ingresos',data:meses.map(r=>r.ingreso),backgroundColor:PRIMARY,borderRadius:6},
+      {label:'Costos',data:meses.map(r=>r.costo),backgroundColor:'#EF4444',borderRadius:6},
+      {label:'Resultado',data:meses.map(r=>r.resultado),type:'line',borderColor:'#F59E0B',pointRadius:5,pointBackgroundColor:'#F59E0B',borderWidth:3,fill:false},
+    ]},
+    options:{responsive:true,plugins:{tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+fM(ctx.raw)}},legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:11,weight:600}}}},scales:{y:{ticks:{callback:v=>fM(v)},grid:{color:'#E2E8F0'}},x:{grid:{display:false}}}}
+  });
+  if (charts.margenMensual) charts.margenMensual.destroy();
+  charts.margenMensual = new Chart(document.getElementById('chart-margen-mensual'), {
+    type:'line',
+    data:{labels,datasets:[{label:'Margen %',data:meses.map(r=>r.margen),borderColor:PRIMARY,backgroundColor:'rgba(194,65,12,0.1)',pointRadius:5,pointBackgroundColor:PRIMARY,borderWidth:3,fill:true,tension:0.3}]},
+    options:{responsive:true,plugins:{tooltip:{callbacks:{label:ctx=>fPct(ctx.raw)}},legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'%'},grid:{color:'#E2E8F0'}},x:{grid:{display:false}}}}
+  });
+
+  let th = '<thead><tr>' + ['Mes','Ingresos','Costos','Resultado','Margen'].map(h=>'<th class="py-2 px-2 text-left text-xs font-bold uppercase text-gray-400 border-b-2 border-gray-100">'+h+'</th>').join('') + '</tr></thead><tbody>';
+  meses.forEach(r => {
+    th += '<tr class="border-b border-gray-50">' +
+      '<td class="py-2 px-2 font-semibold text-gray-700">' + MESES[r.mes] + '</td>' +
+      '<td class="py-2 px-2 text-right dl-cell" title="Descargar CSV ingresos · ' + MESES[r.mes] + ' ' + y + '" onclick="dlClick(\'ingresos\',' + y + ',' + r.mes + ',null,null)">' + fM(r.ingreso) + '</td>' +
+      '<td class="py-2 px-2 text-right text-gray-500 dl-cell" title="Descargar CSV costos · ' + MESES[r.mes] + ' ' + y + '" onclick="dlClick(\'costos\',' + y + ',' + r.mes + ',null,null)">' + fM(r.costo) + '</td>' +
+      '<td class="py-2 px-2 text-right font-bold ' + (r.resultado>=0?'text-emerald-600':'text-red-500') + '" style="font-variant-numeric:tabular-nums">' + fM(r.resultado) + '</td>' +
+      '<td class="py-2 px-2 text-right"><span class="px-2 py-0.5 rounded-full text-xs font-bold ' + (r.resultado>=0?'bg-emerald-50 text-emerald-600':'bg-red-50 text-red-500') + '">' + (r.ingreso>0?fPct(r.margen):'-') + '</span></td>' +
+      '</tr>';
+  });
+  document.getElementById('tabla-mensual').innerHTML = th + '</tbody>';
+}
+
+// =========== POR LÍNEA ===========
+function renderLinea() {
+  updateBreadcrumb('linea');
+  const ubics = getFilteredLinea().filter(r => r.ingreso !== 0 || r.costo !== 0);
+
+  if (!state.selectedLinea) {
+    document.getElementById('linea-detail').innerHTML = '';
+    let html = '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">';
+    ubics.sort((a,b)=>b.ingreso-a.ingreso).forEach(r => {
+      const hexColor = LINEA_COLOR[r.grupo] || DEFAULT_COLOR;
+      html += '<div class="level-card card p-5" data-linea="' + r.grupo + '">' +
+        '<div class="flex items-center gap-3 mb-3"><div class="w-3 h-3 rounded-full" style="background:' + hexColor + '"></div>' +
+        '<h3 class="text-sm font-bold text-gray-800 truncate">' + r.grupo + '</h3></div>' +
+        '<div class="mt-3 grid grid-cols-2 gap-2 text-xs">' +
+        '<div><p class="text-gray-400 font-semibold">Ingreso</p><p class="font-bold text-gray-700">' + fM(r.ingreso) + '</p></div>' +
+        '<div><p class="text-gray-400 font-semibold">Costo</p><p class="font-bold text-gray-700">' + fM(r.costo) + '</p></div>' +
+        '</div><div class="mt-3 pt-3 border-t border-gray-100">' +
+        '<span class="px-2 py-0.5 rounded-full text-xs font-bold ' + (r.resultado>=0?'bg-emerald-50 text-emerald-600':'bg-red-50 text-red-500') + '">Margen ' + fPct(r.margen) + '</span>' +
+        '<span class="ml-2 text-xs text-gray-400">Click para centros →</span>' +
+        '</div></div>';
+    });
+    html += '</div>';
+    document.getElementById('linea-summary').innerHTML = html;
+    document.querySelectorAll('#linea-summary .level-card').forEach(card => {
+      card.addEventListener('click', () => { state.selectedLinea = card.dataset.linea; renderLinea(); });
+    });
+  } else {
+    document.getElementById('linea-summary').innerHTML = '';
+    const u = state.selectedLinea;
+    const r = ubics.find(x => x.grupo === u) || {ingreso:0,costo:0,resultado:0,margen:0};
+    const cc_ubic = getFilteredCC().filter(x => x.grupo === u && (x.ingreso !== 0 || x.costo !== 0)).sort((a,b) => b.resultado - a.resultado);
+    const hexColor = LINEA_COLOR[u] || DEFAULT_COLOR;
+
+    let html = '<div class="card"><div class="p-5">' +
+      '<div class="flex items-center justify-between mb-4">' +
+      '<div><h2 class="text-base font-bold text-gray-800">Línea: <span style="color:' + hexColor + '">' + u + '</span></h2>' +
+      '<p class="text-xs text-gray-400">' + periodoLabel() + ' · ' + cc_ubic.length + ' centros con actividad</p></div>' +
+      '<button id="btn-cerrar-linea" class="text-gray-400 hover:text-gray-600 text-lg">✕</button>' +
+      '</div>' +
+      '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">' +
+      '<div class="bg-blue-50 rounded-xl p-3 text-center dl-cell" title="Descargar CSV ingresos · ' + u + '" onclick="dlClick(\'ingresos\',state.year,state.month,\'' + u + '\',null)"><p class="text-xs text-blue-400 font-semibold mb-1">Ingreso <span class="dl-icon">📥</span></p><p class="text-lg font-extrabold text-blue-700">' + fM(r.ingreso) + '</p></div>' +
+      '<div class="bg-red-50 rounded-xl p-3 text-center dl-cell" title="Descargar CSV costos · ' + u + '" onclick="dlClick(\'costos\',state.year,state.month,\'' + u + '\',null)"><p class="text-xs text-red-400 font-semibold mb-1">Costo <span class="dl-icon">📥</span></p><p class="text-lg font-extrabold text-red-600">' + fM(r.costo) + '</p></div>' +
+      '<div class="bg-' + (r.resultado>=0?'emerald':'red') + '-50 rounded-xl p-3 text-center"><p class="text-xs text-' + (r.resultado>=0?'emerald':'red') + '-400 font-semibold mb-1">Resultado</p><p class="text-lg font-extrabold text-' + (r.resultado>=0?'emerald':'red') + '-700">' + fM(r.resultado) + '</p></div>' +
+      '<div class="bg-amber-50 rounded-xl p-3 text-center"><p class="text-xs text-amber-500 font-semibold mb-1">Margen</p><p class="text-lg font-extrabold text-amber-700">' + fPct(r.margen) + '</p></div>' +
+      '</div></div></div>';
+
+    html += '<div class="card mt-6"><div class="p-5 overflow-x-auto"><h3 class="text-sm font-bold text-gray-700 mb-4">Centros de costo · click para detalle</h3>';
+    html += '<table class="w-full text-xs"><thead><tr>' + ['Cód','Centro','Ingreso','Costo','Resultado','Margen'].map(h=>'<th class="text-left py-2.5 px-2 text-xs font-bold uppercase text-gray-400 border-b-2 border-gray-100">'+h+'</th>').join('') + '</tr></thead><tbody>';
+    cc_ubic.forEach(c => {
+      html += '<tr class="border-b border-gray-50 row-hover" data-cod="' + c.cod + '">' +
+        '<td class="py-2 px-2 font-bold text-gray-700">' + c.cod + '</td>' +
+        '<td class="py-2 px-2 text-gray-700 max-w-xs truncate">' + c.nombre + '</td>' +
+        '<td class="py-2 px-2 text-right">' + fM(c.ingreso) + '</td>' +
+        '<td class="py-2 px-2 text-right text-gray-500">' + fM(c.costo) + '</td>' +
+        '<td class="py-2 px-2 text-right font-bold ' + (c.resultado>=0?'text-emerald-600':'text-red-500') + '">' + fM(c.resultado) + '</td>' +
+        '<td class="py-2 px-2 text-right"><span class="px-2 py-0.5 rounded-full text-xs font-bold ' + (c.resultado>=0?'bg-emerald-50 text-emerald-600':'bg-red-50 text-red-500') + '">' + (c.ingreso>0?fPct(c.margen):'S/I') + '</span></td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+
+    if (cc_ubic.length > 0) {
+      html += '<div class="card mt-6"><div class="p-5"><h3 class="text-sm font-bold text-gray-700 mb-4">Resultado por centro · ' + u + ' · ' + periodoLabel() + '</h3><canvas id="chart-linea-detalle" height="180"></canvas></div></div>';
+    }
+    document.getElementById('linea-detail').innerHTML = html;
+    document.getElementById('btn-cerrar-linea').addEventListener('click', () => { state.selectedLinea = ''; renderLinea(); });
+    document.querySelectorAll('#linea-detail tbody tr[data-cod]').forEach(tr => {
+      tr.addEventListener('click', () => { state.selectedCC = tr.dataset.cod; switchTab('centro'); });
+    });
+    if (cc_ubic.length > 0) {
+      if (charts.lineaDetalle) charts.lineaDetalle.destroy();
+      const top = cc_ubic.slice(0, 20);
+      charts.lineaDetalle = new Chart(document.getElementById('chart-linea-detalle'), {
+        type:'bar',
+        data:{labels:top.map(c=>c.nombre.substring(0,40)),datasets:[{label:'Resultado',data:top.map(c=>c.resultado),backgroundColor:top.map(c=>c.resultado>=0?'#10B981':'#EF4444'),borderRadius:6}]},
+        options:{indexAxis:'y',responsive:true,plugins:{tooltip:{callbacks:{label:ctx=>fM(ctx.raw)}},legend:{display:false}},scales:{x:{ticks:{callback:v=>fM(v)},grid:{color:'#E2E8F0'}},y:{ticks:{font:{size:9,weight:500}},grid:{display:false}}}}
+      });
+    }
+  }
+}
+
+// =========== POR CENTRO ===========
+function renderCentro() {
+  const sel = document.getElementById('centro-select');
+  if (sel.options.length === 0) {
+    sel.innerHTML = '<option value="">-- Ver todos los centros --</option>';
+    LINEAS_ORDEN.forEach(u => {
+      const opts = DATA.catalogo.filter(o => o.grupo === u);
+      if (!opts.length) return;
+      sel.innerHTML += '<optgroup label="' + u + '">';
+      opts.forEach(o => { sel.innerHTML += '<option value="' + o.cod + '">[' + o.cod + '] ' + o.nombre + '</option>'; });
+      sel.innerHTML += '</optgroup>';
+    });
+    sel.addEventListener('change', () => { state.selectedCC = sel.value; renderCentro(); });
+  }
+  sel.value = state.selectedCC;
+  hideMov(); updateBreadcrumb('centro');
+  const y = state.year, cc_all = getFilteredCC();
+
+  if (!state.selectedCC) {
+    const activas = cc_all.filter(c => c.ingreso !== 0 || c.costo !== 0).sort((a,b) => b.resultado - a.resultado);
+    let html = '<div class="card"><div class="p-5 overflow-x-auto"><h3 class="text-sm font-bold text-gray-700 mb-4">Todos los centros con actividad · ' + periodoLabel() + ' (' + activas.length + ' activos)</h3>';
+    html += '<table class="w-full text-xs"><thead><tr>' + ['Cód','Línea','Centro','Ingreso','Costo','Resultado','Margen'].map(h=>'<th class="text-left py-2.5 px-2 text-xs font-bold uppercase text-gray-400 border-b-2 border-gray-100">'+h+'</th>').join('') + '</tr></thead><tbody>';
+    activas.forEach(c => {
+      const gc = LINEA_COLOR[c.grupo] || DEFAULT_COLOR;
+      html += '<tr class="border-b border-gray-50 row-hover" data-cod="' + c.cod + '">' +
+        '<td class="py-2 px-2 font-bold text-gray-700">' + c.cod + '</td>' +
+        '<td class="py-2 px-2"><span class="px-2 py-0.5 rounded text-xs font-semibold" style="background:' + gc + '20;color:' + gc + '">' + c.grupo + '</span></td>' +
+        '<td class="py-2 px-2 text-gray-700 max-w-xs truncate">' + c.nombre + '</td>' +
+        '<td class="py-2 px-2 text-right">' + fM(c.ingreso) + '</td>' +
+        '<td class="py-2 px-2 text-right text-gray-500">' + fM(c.costo) + '</td>' +
+        '<td class="py-2 px-2 text-right font-bold ' + (c.resultado>=0?'text-emerald-600':'text-red-500') + '">' + fM(c.resultado) + '</td>' +
+        '<td class="py-2 px-2 text-right"><span class="px-2 py-0.5 rounded-full text-xs font-bold ' + (c.resultado>=0?'bg-emerald-50 text-emerald-600':'bg-red-50 text-red-500') + '">' + (c.ingreso>0?fPct(c.margen):'S/I') + '</span></td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+    document.getElementById('centro-content').innerHTML = html;
+    document.querySelectorAll('#centro-content tbody tr[data-cod]').forEach(tr => {
+      tr.addEventListener('click', () => { state.selectedCC = tr.dataset.cod; renderCentro(); });
+    });
+    return;
+  }
+
+  const c = cc_all.find(x => x.cod === state.selectedCC) || {cod:state.selectedCC, ingreso:0, costo:0, resultado:0, margen:0};
+  const meta = DATA.catalogo.find(x => x.cod === state.selectedCC);
+  if (!meta) { document.getElementById('centro-content').innerHTML = '<div class="card p-8 text-center text-gray-400">No encontrado</div>'; return; }
+
+  const histo = DATA.resumen_cc.filter(x => x.cod === state.selectedCC).sort((a,b) => a.ano - b.ano);
+  const meses_cc = DATA.resumen_cc_mes.filter(x => x.cod === state.selectedCC && x.ano === y).sort((a,b) => a.mes - b.mes);
+  const gc = LINEA_COLOR[meta.grupo] || DEFAULT_COLOR;
+
+  let html = '<div class="card"><div class="p-5">' +
+    '<div class="flex items-center justify-between mb-4">' +
+    '<div><h2 class="text-base font-bold text-gray-800">[' + meta.cod + '] ' + meta.nombre + '</h2>' +
+    '<p class="text-xs text-gray-400"><span class="font-semibold" style="color:' + gc + '">📦 ' + meta.grupo + '</span> · ' + periodoLabel() + '</p></div>' +
+    '<button id="btn-cerrar-cc" class="text-gray-400 hover:text-gray-600 text-lg">✕</button>' +
+    '</div>' +
+    '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">' +
+    '<div class="bg-blue-50 rounded-xl p-3 text-center"><p class="text-xs text-blue-400 font-semibold mb-1">Ingreso</p><p class="text-lg font-extrabold text-blue-700">' + fM(c.ingreso) + '</p></div>' +
+    '<div class="bg-red-50 rounded-xl p-3 text-center"><p class="text-xs text-red-400 font-semibold mb-1">Costo</p><p class="text-lg font-extrabold text-red-600">' + fM(c.costo) + '</p></div>' +
+    '<div class="bg-' + (c.resultado>=0?'emerald':'red') + '-50 rounded-xl p-3 text-center"><p class="text-xs text-' + (c.resultado>=0?'emerald':'red') + '-400 font-semibold mb-1">Resultado</p><p class="text-lg font-extrabold text-' + (c.resultado>=0?'emerald':'red') + '-700">' + fM(c.resultado) + '</p></div>' +
+    '<div class="bg-amber-50 rounded-xl p-3 text-center"><p class="text-xs text-amber-500 font-semibold mb-1">Margen</p><p class="text-lg font-extrabold text-amber-700">' + (c.ingreso>0?fPct(c.margen):'S/I') + '</p></div>' +
+    '</div>' +
+    '<div class="mt-4 flex justify-end gap-2 flex-wrap">' +
+    '<button id="btn-ver-mov" class="flex items-center gap-2 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-bold rounded-xl border border-orange-200 transition-all">📄 Ver movimientos</button>' +
+    '<button onclick="dlClick(\'ingresos\',state.year,state.month,null,\'' + meta.cod + '\')" class="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition-all">📥 Ingresos CSV</button>' +
+    '<button onclick="dlClick(\'costos\',state.year,state.month,null,\'' + meta.cod + '\')" class="flex items-center gap-2 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 transition-all">📥 Costos CSV</button>' +
+    '</div></div></div>';
+
+  html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">';
+  html += '<div class="card"><div class="p-5"><h3 class="text-sm font-bold text-gray-700 mb-4">Evolución histórica</h3><canvas id="chart-cc-hist"></canvas></div></div>';
+  if (meses_cc.length > 0) html += '<div class="card"><div class="p-5"><h3 class="text-sm font-bold text-gray-700 mb-4">Mensual ' + yLabel(y) + '</h3><canvas id="chart-cc-mes"></canvas></div></div>';
+  html += '</div>';
+
+  document.getElementById('centro-content').innerHTML = html;
+  document.getElementById('btn-cerrar-cc').addEventListener('click', () => { state.selectedCC = ''; renderCentro(); });
+  document.getElementById('btn-ver-mov').addEventListener('click', () => loadMovimientos(meta.cod, meta.nombre));
+
+  if (histo.length > 0) {
+    new Chart(document.getElementById('chart-cc-hist'), {
+      type:'bar',
+      data:{labels:histo.map(r=>yLabel(r.ano)),datasets:[
+        {label:'Ingresos',data:histo.map(r=>r.ingreso),backgroundColor:PRIMARY,borderRadius:6},
+        {label:'Costos',data:histo.map(r=>r.costo),backgroundColor:'#EF4444',borderRadius:6},
+        {label:'Resultado',data:histo.map(r=>r.resultado),type:'line',borderColor:'#F59E0B',pointRadius:5,pointBackgroundColor:'#F59E0B',borderWidth:3,fill:false},
+      ]},
+      options:{responsive:true,plugins:{tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+fM(ctx.raw)}},legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:10}}}},scales:{y:{ticks:{callback:v=>fM(v)},grid:{color:'#E2E8F0'}},x:{grid:{display:false}}}}
+    });
+  }
+  if (meses_cc.length > 0) {
+    new Chart(document.getElementById('chart-cc-mes'), {
+      type:'bar',
+      data:{labels:meses_cc.map(r=>MESES[r.mes]),datasets:[
+        {label:'Ingresos',data:meses_cc.map(r=>r.ingreso),backgroundColor:PRIMARY,borderRadius:6},
+        {label:'Costos',data:meses_cc.map(r=>r.costo),backgroundColor:'#EF4444',borderRadius:6},
+        {label:'Resultado',data:meses_cc.map(r=>r.resultado),type:'line',borderColor:'#F59E0B',pointRadius:5,pointBackgroundColor:'#F59E0B',borderWidth:3,fill:false},
+      ]},
+      options:{responsive:true,plugins:{tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+fM(ctx.raw)}},legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:10}}}},scales:{y:{ticks:{callback:v=>fM(v)},grid:{color:'#E2E8F0'}},x:{grid:{display:false}}}}
+    });
+  }
+}
+
+// =========== MOVIMIENTOS ===========
+async function loadMovimientos(cod, nombre) {
+  document.getElementById('mov-panel').classList.add('visible');
+  document.getElementById('mov-title').textContent = 'Movimientos Libro Mayor · [' + cod + '] ' + nombre;
+  document.getElementById('mov-subtitle').textContent = periodoLabel() + ' · Cargando...';
+  document.getElementById('mov-loading').style.display = 'block';
+  document.getElementById('mov-table-wrap').style.display = 'none';
+  document.getElementById('mov-panel').scrollIntoView({behavior:'smooth', block:'start'});
+
+  let query = db.from('3_chamonate_libro_mayor')
+    .select('fecha,tipo_doc,numero,glosa_enc,n_cuenta,glosa_det,debe,haber,rut,nombre')
+    .eq('c_cc', cod).eq('ano_contable', state.year)
+    .order('fecha', {ascending:true}).order('numero', {ascending:true}).limit(1000);
+  if (state.month > 0) query = query.eq('mes_contable', state.month);
+  const { data, error } = await query;
+
+  if (error) {
+    document.getElementById('mov-subtitle').textContent = 'Error al cargar movimientos.';
+    document.getElementById('mov-loading').innerHTML = '<p class="text-red-500">Error: ' + error.message + '</p>';
+    return;
+  }
+  const rows = data || [];
+  document.getElementById('mov-subtitle').textContent = periodoLabel() + ' · ' + rows.length + ' movimientos' + (rows.length === 1000 ? ' (primeros 1.000)' : '');
+  document.getElementById('mov-loading').style.display = 'none';
+
+  const totalHaber = rows.reduce((s,r) => s + (+r.haber||0), 0);
+  const totalDebe  = rows.reduce((s,r) => s + (+r.debe||0), 0);
+  let html = '<div class="text-xs text-gray-500 mb-3 flex gap-6"><span>Total Haber: <strong class="text-blue-700">' + fCLP(totalHaber) + '</strong></span><span>Total Debe: <strong class="text-red-600">' + fCLP(totalDebe) + '</strong></span></div>';
+  html += '<table class="w-full text-xs min-w-max"><thead><tr>' +
+    ['Fecha','Tipo','Glosa','Cuenta','Detalle','Debe','Haber','RUT','Nombre'].map(h=>'<th class="text-left py-2 px-2 font-bold uppercase text-gray-400 border-b-2 border-gray-100 whitespace-nowrap">'+h+'</th>').join('') +
+    '</tr></thead><tbody>';
+  rows.forEach(r => {
+    html += '<tr class="border-b border-gray-50 hover:bg-orange-50/40">' +
+      '<td class="py-1.5 px-2 whitespace-nowrap text-gray-600">' + (r.fecha||'') + '</td>' +
+      '<td class="py-1.5 px-2 whitespace-nowrap"><span class="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">' + (r.tipo_doc||'') + '</span></td>' +
+      '<td class="py-1.5 px-2 max-w-xs truncate text-gray-700" title="' + (r.glosa_enc||'') + '">' + (r.glosa_enc||'') + '</td>' +
+      '<td class="py-1.5 px-2 whitespace-nowrap text-gray-500 font-mono text-xs">' + (r.n_cuenta||'') + '</td>' +
+      '<td class="py-1.5 px-2 max-w-xs truncate text-gray-500" title="' + (r.glosa_det||'') + '">' + (r.glosa_det||'') + '</td>' +
+      '<td class="py-1.5 px-2 text-right font-semibold ' + (r.debe>0?'text-red-600':'text-gray-300') + '" style="font-variant-numeric:tabular-nums">' + (r.debe>0?fCLP(r.debe):'-') + '</td>' +
+      '<td class="py-1.5 px-2 text-right font-semibold ' + (r.haber>0?'text-blue-700':'text-gray-300') + '" style="font-variant-numeric:tabular-nums">' + (r.haber>0?fCLP(r.haber):'-') + '</td>' +
+      '<td class="py-1.5 px-2 whitespace-nowrap text-gray-500">' + (r.rut||'') + '</td>' +
+      '<td class="py-1.5 px-2 max-w-xs truncate text-gray-600" title="' + (r.nombre||'') + '">' + (r.nombre||'') + '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('mov-table-wrap').innerHTML = html;
+  document.getElementById('mov-table-wrap').style.display = 'block';
+}
+function hideMov() { document.getElementById('mov-panel').classList.remove('visible'); }
+document.getElementById('mov-close').addEventListener('click', hideMov);
+
+// =========== DESCARGA CSV ===========
+function extractNPF(glosa) {
+  if (!glosa) return '';
+  const m = String(glosa).match(/[Nn][°º#]\s*\.?\s*(\d{3,})/);
+  return m ? m[1] : '';
+}
+function exportCSV(rows, filename) {
+  if (!rows.length) { alert('No hay datos para este período.'); return; }
+  const cols = ['fecha','ano_contable','mes_contable','tipo_doc','numero','n_prefactura','cc_cod','cc_nombre','cc_grupo','cuenta','n_cuenta','glosa_enc','glosa_det','debe','haber','rut','nombre','tipo'];
+  const csv = [cols.join(';'), ...rows.map(r => cols.map(c => {
+    const v = c === 'n_prefactura' ? extractNPF(r['glosa_enc']) : r[c];
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    return (s.includes(';') || s.includes('"') || s.includes('\n')) ? '"' + s.replace(/"/g,'""') + '"' : s;
+  }).join(';'))].join('\n');
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+}
+
+function showToast(msg, color) {
+  let t = document.getElementById('dl-toast');
+  if (!t) {
+    t = document.createElement('div'); t.id = 'dl-toast';
+    t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:99999;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,0.18);transition:opacity 0.3s;color:#fff;';
+    document.body.appendChild(t);
+  }
+  t.style.background = color || PRIMARY; t.style.opacity = '1'; t.textContent = msg;
+}
+function hideToast() { const t = document.getElementById('dl-toast'); if (t) t.style.opacity = '0'; }
+
+async function downloadDetalle(params) {
+  const {tipo, ano, mes, grupo, cod} = params;
+  let allRows = [], from = 0;
+  const PAGE = 1000;
+  showToast('⏳ Descargando detalle...', PRIMARY);
+  while (true) {
+    let q = db.from('v_3_pack_detalle').select('*');
+    if (tipo && tipo !== 'ambos') q = q.eq('tipo', tipo);
+    if (ano) q = q.eq('ano_contable', ano);
+    if (mes && mes > 0) q = q.eq('mes_contable', mes);
+    if (grupo) q = q.eq('cc_grupo', grupo);
+    if (cod) q = q.eq('cc_cod', cod);
+    q = q.order('fecha').order('numero').range(from, from + PAGE - 1);
+    const { data, error } = await q;
+    if (error) {
+      hideToast(); showToast('❌ Error: ' + error.message, '#dc2626');
+      setTimeout(hideToast, 5000); console.error(error); return;
+    }
+    if (!data?.length) break;
+    allRows.push(...data);
+    showToast('⏳ Descargando... ' + allRows.length + ' filas', PRIMARY);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  hideToast();
+  if (!allRows.length) { alert('No hay datos para este período.'); return; }
+  const t = tipo || 'todo', y = ano ? String(ano) : '';
+  const m = (mes && mes > 0) ? (MESES[mes] || String(mes)) : '';
+  const g = grupo ? grupo.replace(/\s+/g,'-') : '', c = cod || '';
+  const parts = ['PACK', t, c || g || 'todos', y, m].filter(Boolean);
+  exportCSV(allRows, parts.join('_') + '.csv');
+  showToast('✅ ' + allRows.length + ' filas descargadas', '#059669');
+  setTimeout(hideToast, 3000);
+}
+
+function dlClick(tipo, ano, mes, grupo, cod) {
+  downloadDetalle({ tipo, ano, mes: mes || 0, grupo: grupo || null, cod: cod || null });
+}
+
+initData();
+</script>
+</body>
+</html>
