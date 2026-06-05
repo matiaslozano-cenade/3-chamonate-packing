@@ -56,7 +56,7 @@
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-white text-lg font-extrabold tracking-tight">Proyecto Chamonate · Rentabilidad PACKING</h1>
-        <p class="text-orange-300/60 text-xs font-medium">Fuente: Libro Mayor</p>
+        <p class="text-orange-300/60 text-xs font-medium">Fuente: Libro Mayor · Temporada oct–sep</p>
       </div>
       <span class="bg-orange-500/20 text-orange-300 text-xs font-bold px-3 py-1.5 rounded-full border border-orange-400/30">📦 Packing</span>
     </div>
@@ -76,7 +76,7 @@
     <div class="p-3 flex items-center justify-between gap-4 flex-wrap">
       <div class="flex items-center gap-4 flex-wrap">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-gray-500">📅 Año:</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-gray-500">🌱 Temporada:</span>
           <div class="flex gap-1.5" id="year-pills-global"></div>
         </div>
         <div class="flex items-center gap-2">
@@ -96,13 +96,13 @@
   <div data-tab="general" class="visible space-y-6">
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpis-general"></div>
     <div class="card"><div class="p-5 overflow-x-auto">
-      <h3 class="text-sm font-bold text-gray-700 mb-4">Resumen Comparativo Anual</h3>
+      <h3 class="text-sm font-bold text-gray-700 mb-4">Resumen Comparativo por Temporada</h3>
       <table class="w-full text-sm" id="tabla-anual"></table>
     </div></div>
     <div class="grid lg:grid-cols-2 gap-6">
       <div class="card"><div class="p-5">
         <h3 class="text-sm font-bold text-gray-700 mb-1">Ingresos vs Costos · Resultado</h3>
-        <p class="text-xs text-gray-400 mb-3">Barras = ingresos · Línea = costos · por año</p>
+        <p class="text-xs text-gray-400 mb-3">Barras = ingresos · Línea = costos · por temporada (oct–sep)</p>
         <div class="chart-box"><canvas id="chart-anual"></canvas></div>
       </div></div>
       <div class="card" style="border-color:#fed7aa"><div class="p-5 overflow-x-auto">
@@ -114,7 +114,7 @@
     <div class="grid lg:grid-cols-2 gap-6">
       <div class="card"><div class="p-5">
         <h3 class="text-sm font-bold text-gray-700 mb-1">Margen %</h3>
-        <p class="text-xs text-gray-400 mb-3">% sobre ingresos por año</p>
+        <p class="text-xs text-gray-400 mb-3">% sobre ingresos por temporada</p>
         <div class="chart-box sm"><canvas id="chart-margen"></canvas></div>
       </div></div>
       <div class="card"><div class="p-5">
@@ -209,6 +209,15 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const db = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
 const MESES = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+// ===== TEMPORADA PACKING (octubre → septiembre) =====
+// La temporada T abarca del 1 de octubre del año T al 30 de septiembre del año T+1.
+// mes >= 10 (oct..dic) pertenece a la temporada del mismo año; mes <= 9 (ene..sep) a la del año anterior.
+const TEMP_ORDER = [10,11,12,1,2,3,4,5,6,7,8,9]; // orden de meses dentro de una temporada
+const tempOf = (ano, mes) => mes >= 10 ? ano : ano - 1;            // temporada (año de inicio) de un (año,mes) contable
+const anoForTempMonth = (temp, mes) => mes >= 10 ? temp : temp + 1; // año contable real de un mes dentro de la temporada
+const tempMonthIdx = mes => TEMP_ORDER.indexOf(+mes);             // posición del mes en el orden de temporada
+const pad2 = n => String(((n % 100) + 100) % 100).padStart(2, '0');
+const tempLabel = t => 'Temp. ' + pad2(t) + '-' + pad2(t + 1);    // ej: 2024 -> "Temp. 24-25"
 const LINEA_COLOR = {
   'Cerezas':'#dc2626',
   'Cítricos':'#f59e0b',
@@ -230,7 +239,7 @@ let charts = {};
 const fCLP = v => new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',minimumFractionDigits:0}).format(v);
 const fM = v => { const a=Math.abs(v),s=v<0?'-':''; if(a>=1e9) return s+'$'+(a/1e9).toFixed(1).replace('.',',')+' B'; if(a>=1e6) return s+'$'+(a/1e6).toFixed(1).replace('.',',')+' M'; if(a>=1e3) return s+'$'+(a/1e3).toFixed(0)+' K'; return s+'$'+a; };
 const fPct = v => v.toFixed(1).replace('.',',')+'%';
-const yLabel = y => String(y);
+const yLabel = tempLabel;
 const calc = (ing, costo) => { const r = ing - costo; const m = ing > 0 ? r/ing*100 : (costo > 0 ? -100 : 0); return { resultado: r, margen: Math.round(m*10)/10 }; };
 
 function kpiHTML(label, value, sub, danger, color) {
@@ -269,29 +278,32 @@ async function initData() {
     console.error(e); return;
   }
 
-  RAW_CUENTA = cuentaRows.map(r => ({ cod:r.cod, grupo:r.grupo, ano:+r.ano, mes:+r.mes, n_cuenta:r.n_cuenta, tipo:r.tipo, monto:+r.monto }));
+  RAW_CUENTA = cuentaRows.map(r => ({ cod:r.cod, grupo:r.grupo, ano:+r.ano, mes:+r.mes, temp:tempOf(+r.ano,+r.mes), n_cuenta:r.n_cuenta, tipo:r.tipo, monto:+r.monto }));
 
   const catalogo = catRows.map(r => ({ cod: r.cod, nombre: r.nombre, grupo: r.grupo }));
   const lineasSet = new Set(catRows.map(r => r.grupo).filter(Boolean));
   LINEAS_ORDEN = [...lineasSet].sort();
 
+  // ano en los resúmenes = TEMPORADA (año de inicio oct→sep); mes se mantiene como mes contable real (1-12)
   const ccAnnMap = {};
   ccRows.forEach(r => {
-    const k = r.cod + '-' + r.ano;
-    if (!ccAnnMap[k]) ccAnnMap[k] = { cod:r.cod, nombre:r.nombre, grupo:r.grupo, ano:+r.ano, ingreso:0, costo:0 };
+    const t = tempOf(+r.ano, +r.mes);
+    const k = r.cod + '-' + t;
+    if (!ccAnnMap[k]) ccAnnMap[k] = { cod:r.cod, nombre:r.nombre, grupo:r.grupo, ano:t, ingreso:0, costo:0 };
     ccAnnMap[k].ingreso += +r.ingresos; ccAnnMap[k].costo += +r.costos;
   });
   const resumen_cc = Object.values(ccAnnMap).map(r => ({ ...r, ...calc(r.ingreso, r.costo) }));
 
   const resumen_cc_mes = ccRows.map(r => {
     const ing = +r.ingresos, cos = +r.costos;
-    return { cod:r.cod, nombre:r.nombre, grupo:r.grupo, ano:+r.ano, mes:+r.mes, ingreso:ing, costo:cos, ...calc(ing, cos) };
+    return { cod:r.cod, nombre:r.nombre, grupo:r.grupo, ano:tempOf(+r.ano,+r.mes), mes:+r.mes, ingreso:ing, costo:cos, ...calc(ing, cos) };
   });
 
   const grpAnnMap = {};
   grupoRows.forEach(r => {
-    const k = r.grupo + '-' + r.ano;
-    if (!grpAnnMap[k]) grpAnnMap[k] = { grupo:r.grupo, ano:+r.ano, ingreso:0, costo:0 };
+    const t = tempOf(+r.ano, +r.mes);
+    const k = r.grupo + '-' + t;
+    if (!grpAnnMap[k]) grpAnnMap[k] = { grupo:r.grupo, ano:t, ingreso:0, costo:0 };
     grpAnnMap[k].ingreso += +r.ingresos; grpAnnMap[k].costo += +r.costos;
   });
   const resumen_linea = Object.values(grpAnnMap).map(r => ({ ...r, ...calc(r.ingreso, r.costo) }));
@@ -308,7 +320,7 @@ async function initData() {
 
 // =========== FILTERS ===========
 function getAvailableYears() { return [...new Set(DATA.resumen_cc_mes.map(r => r.ano))].sort(); }
-function getAvailableMonths(y) { return [...new Set(DATA.resumen_cc_mes.filter(r => r.ano === y && (r.ingreso !== 0 || r.costo !== 0)).map(r => r.mes))].sort((a,b)=>a-b); }
+function getAvailableMonths(y) { return [...new Set(DATA.resumen_cc_mes.filter(r => r.ano === y && (r.ingreso !== 0 || r.costo !== 0)).map(r => r.mes))].sort((a,b)=>tempMonthIdx(a)-tempMonthIdx(b)); }
 
 function passGlobalFilter(r) { return !state.fLinea || r.grupo === state.fLinea; }
 
@@ -336,17 +348,17 @@ function getResumenAnual() {
 function getResumenMensual(y) {
   const m = {};
   DATA.resumen_cc_mes.filter(r => r.ano === y && passGlobalFilter(r)).forEach(r => { if (!m[r.mes]) m[r.mes] = {ano:y, mes:r.mes, ingreso:0, costo:0}; m[r.mes].ingreso += r.ingreso; m[r.mes].costo += r.costo; });
-  return Object.values(m).map(r => ({ ...r, ...calc(r.ingreso, r.costo) })).sort((a,b) => a.mes - b.mes);
+  return Object.values(m).map(r => ({ ...r, ...calc(r.ingreso, r.costo) })).sort((a,b) => tempMonthIdx(a.mes) - tempMonthIdx(b.mes));
 }
 
-function periodoLabel() { return state.month === 0 ? yLabel(state.year) : MESES[state.month] + ' ' + state.year; }
+function periodoLabel() { return state.month === 0 ? yLabel(state.year) : MESES[state.month] + ' ' + anoForTempMonth(state.year, state.month); }
 
 // =========== EERR (Estado de Resultado por cuenta) ===========
 function eerrData(scope) {
   scope = scope || {};
   let ing = 0; const cByC = {};
   RAW_CUENTA.forEach(r => {
-    if (r.ano !== state.year) return;
+    if (r.temp !== state.year) return;
     if (state.month !== 0 && r.mes !== state.month) return;
     if (state.fLinea && r.grupo !== state.fLinea) return;
     if (scope.grupo && r.grupo !== scope.grupo) return;
@@ -386,7 +398,7 @@ function renderTipoChart(canvasId, scope, subId, subLabel) {
   const byC = {};
   RAW_CUENTA.forEach(r => {
     if (r.tipo !== 'costos') return;
-    if (r.ano !== state.year) return;
+    if (r.temp !== state.year) return;
     if (state.month !== 0 && r.mes !== state.month) return;
     if (state.fLinea && r.grupo !== state.fLinea) return;
     if (scope.grupo && r.grupo !== scope.grupo) return;
@@ -424,8 +436,8 @@ function makeGlobalPills() {
 function makeMonthSelect() {
   const sel = document.getElementById('month-select-global');
   const meses = getAvailableMonths(state.year);
-  let opts = '<option value="0">Todo el año</option>';
-  meses.forEach(m => { opts += '<option value="' + m + '"' + (m === state.month ? ' selected' : '') + '>' + MESES[m] + '</option>'; });
+  let opts = '<option value="0">Toda la temporada</option>';
+  meses.forEach(m => { opts += '<option value="' + m + '"' + (m === state.month ? ' selected' : '') + '>' + MESES[m] + ' ' + anoForTempMonth(state.year, m) + '</option>'; });
   sel.innerHTML = opts; sel.value = state.month;
   sel.onchange = () => { state.month = +sel.value; rerender(); };
 }
@@ -738,7 +750,7 @@ function renderCentro() {
   if (!meta) { document.getElementById('centro-content').innerHTML = '<div class="card p-8 text-center text-gray-400">No encontrado</div>'; return; }
 
   const histo = DATA.resumen_cc.filter(x => x.cod === state.selectedCC).sort((a,b) => a.ano - b.ano);
-  const meses_cc = DATA.resumen_cc_mes.filter(x => x.cod === state.selectedCC && x.ano === y).sort((a,b) => a.mes - b.mes);
+  const meses_cc = DATA.resumen_cc_mes.filter(x => x.cod === state.selectedCC && x.ano === y).sort((a,b) => tempMonthIdx(a.mes) - tempMonthIdx(b.mes));
   const gc = LINEA_COLOR[meta.grupo] || DEFAULT_COLOR;
 
   let html = '<div class="card"><div class="p-5">' +
@@ -803,9 +815,14 @@ async function loadMovimientos(cod, nombre) {
 
   let query = db.from('3_chamonate_libro_mayor')
     .select('fecha,tipo_doc,numero,glosa_enc,n_cuenta,glosa_det,debe,haber,rut,nombre')
-    .eq('c_cc', cod).eq('ano_contable', state.year)
+    .eq('c_cc', cod)
     .order('fecha', {ascending:true}).order('numero', {ascending:true}).limit(1000);
-  if (state.month > 0) query = query.eq('mes_contable', state.month);
+  if (state.month > 0) {
+    query = query.eq('ano_contable', anoForTempMonth(state.year, state.month)).eq('mes_contable', state.month);
+  } else {
+    const t = state.year; // temporada oct->sep: (año t, meses 10-12) o (año t+1, meses 1-9)
+    query = query.or('and(ano_contable.eq.' + t + ',mes_contable.gte.10),and(ano_contable.eq.' + (t + 1) + ',mes_contable.lte.9)');
+  }
   const { data, error } = await query;
 
   if (error) {
@@ -882,8 +899,12 @@ async function downloadDetalle(params) {
   while (true) {
     let q = db.from('v_3_pack_detalle').select('*');
     if (tipo && tipo !== 'ambos') q = q.eq('tipo', tipo);
-    if (ano) q = q.eq('ano_contable', ano);
-    if (mes && mes > 0) q = q.eq('mes_contable', mes);
+    // ano = temporada (oct->sep). Traducir a año/mes contable real.
+    if (ano && mes && mes > 0) {
+      q = q.eq('ano_contable', anoForTempMonth(ano, mes)).eq('mes_contable', mes);
+    } else if (ano) {
+      q = q.or('and(ano_contable.eq.' + ano + ',mes_contable.gte.10),and(ano_contable.eq.' + (ano + 1) + ',mes_contable.lte.9)');
+    }
     if (grupo) q = q.eq('cc_grupo', grupo);
     if (cod) q = q.eq('cc_cod', cod);
     q = q.order('fecha').order('numero').range(from, from + PAGE - 1);
@@ -900,8 +921,8 @@ async function downloadDetalle(params) {
   }
   hideToast();
   if (!allRows.length) { alert('No hay datos para este período.'); return; }
-  const t = tipo || 'todo', y = ano ? String(ano) : '';
-  const m = (mes && mes > 0) ? (MESES[mes] || String(mes)) : '';
+  const t = tipo || 'todo', y = ano ? ('Temp' + pad2(ano) + '-' + pad2(ano + 1)) : '';
+  const m = (mes && mes > 0) ? ((MESES[mes] || String(mes)) + anoForTempMonth(ano, mes)) : '';
   const g = grupo ? grupo.replace(/\s+/g,'-') : '', c = cod || '';
   const parts = ['PACK', t, c || g || 'todos', y, m].filter(Boolean);
   exportCSV(allRows, parts.join('_') + '.csv');

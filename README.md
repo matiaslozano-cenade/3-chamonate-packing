@@ -34,6 +34,14 @@ General · Mensual · **Por Línea** · Por Centro.
 - **Por Línea**: tarjetas por línea de packing con drill **Línea → Centro de costo**; cada vista termina con EERR + "Costos por cuenta" del scope activo.
 - **Por Centro**: histórico anual, mensual del año, EERR del centro, **ver movimientos del Libro Mayor** y descarga CSV.
 
+## Temporada (octubre → septiembre) — particularidad clave
+
+Packing **no** se analiza por año calendario (ene–dic) sino por **temporada de 12 meses, del 1 de octubre al 30 de septiembre** (para no partir la campaña de cerezas nov–ene entre dos años). La temporada T va de **octubre del año T a septiembre del año T+1** y se etiqueta `Temp. YY-YY` (ej: `Temp. 24-25` = oct 2024 → sep 2025).
+
+- Asignación: `temporada = (mes >= 10) ? año : año - 1` (octubre inicia la nueva temporada).
+- Todo el eje temporal (pills, comparativo, mensual, EERR, histórico, drill-down y CSV) razona en temporadas; los meses se ordenan **oct → sep**.
+- El drill-down al Libro Mayor y la descarga CSV traducen la temporada a los dos años contables reales que cruza. Mismo enfoque que Campo (que usa jun→may).
+
 ## Líneas (grupo) de packing
 
 `Cerezas`, `Cítricos`, `Manzanas`, `Carozos · Uva · Frigorífico`, `General Packing`, `Maquinaria Packing`, `Inversiones / Construcción`.
