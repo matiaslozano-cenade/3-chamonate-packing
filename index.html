@@ -268,9 +268,9 @@ async function initData() {
   let ccRows, grupoRows, catRows, cuentaRows;
   try {
     [ccRows, cuentaRows, grupoRows, catRows] = await Promise.all([
-      pagedSelect('v_3_chamonate_pack_cc'),
-      pagedSelect('v_3_chamonate_pack_cuenta', 'cod,grupo,ano,mes,n_cuenta,tipo,monto'),
-      pagedSelect('v_3_chamonate_pack_grupo'),
+      pagedSelect('3_chamonate_pack_cc'),
+      pagedSelect('3_chamonate_pack_cuenta', 'cod,grupo,ano,mes,n_cuenta,tipo,monto'),
+      pagedSelect('3_chamonate_pack_grupo'),
       db.from('3_chamonate_campo_pack_maqu_centros_costo').select('cod,nombre,grupo').eq('linea_negocio','packing').then(r => { if (r.error) throw r.error; return r.data; })
     ]);
   } catch (e) {
@@ -897,7 +897,7 @@ async function downloadDetalle(params) {
   const PAGE = 1000;
   showToast('⏳ Descargando detalle...', PRIMARY);
   while (true) {
-    let q = db.from('v_3_chamonate_pack_detalle').select('*');
+    let q = db.from('3_chamonate_pack_detalle').select('*');
     if (tipo && tipo !== 'ambos') q = q.eq('tipo', tipo);
     // ano = temporada (oct->sep). Traducir a año/mes contable real.
     if (ano && mes && mes > 0) {
