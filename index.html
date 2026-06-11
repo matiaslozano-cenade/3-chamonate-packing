@@ -271,7 +271,7 @@ async function initData() {
       pagedSelect('v_3_chamonate_pack_cc'),
       pagedSelect('v_3_chamonate_pack_cuenta', 'cod,grupo,ano,mes,n_cuenta,tipo,monto'),
       pagedSelect('v_3_chamonate_pack_grupo'),
-      db.from('3_chamonate_centros_costo').select('cod,nombre,grupo').eq('linea_negocio','packing').then(r => { if (r.error) throw r.error; return r.data; })
+      db.from('3_chamonate_campo_pack_maqu_centros_costo').select('cod,nombre,grupo').eq('linea_negocio','packing').then(r => { if (r.error) throw r.error; return r.data; })
     ]);
   } catch (e) {
     document.getElementById('loading-overlay').innerHTML = '<p class="text-red-500 font-semibold">Error cargando datos. Revisa la consola.</p>';
@@ -813,7 +813,7 @@ async function loadMovimientos(cod, nombre) {
   document.getElementById('mov-table-wrap').style.display = 'none';
   document.getElementById('mov-panel').scrollIntoView({behavior:'smooth', block:'start'});
 
-  let query = db.from('3_chamonate_libro_mayor')
+  let query = db.from('3_chamonate_campo_pack_maqu_libro_mayor')
     .select('fecha,tipo_doc,numero,glosa_enc,n_cuenta,glosa_det,debe,haber,rut,nombre')
     .eq('c_cc', cod)
     .order('fecha', {ascending:true}).order('numero', {ascending:true}).limit(1000);
