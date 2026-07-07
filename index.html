@@ -92,6 +92,12 @@
     </div>
   </div>
 
+  <!-- AVISO TEMPORADA ABIERTA -->
+  <div id="temp-abierta-note" class="hidden rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs px-4 py-2.5 flex items-start gap-2">
+    <span class="text-sm leading-none">⚠️</span>
+    <span id="temp-abierta-text" class="font-medium"></span>
+  </div>
+
   <!-- GENERAL -->
   <div data-tab="general" class="visible space-y-6">
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpis-general"></div>
@@ -218,6 +224,10 @@ const anoForTempMonth = (temp, mes) => mes >= 10 ? temp : temp + 1; // año cont
 const tempMonthIdx = mes => TEMP_ORDER.indexOf(+mes);             // posición del mes en el orden de temporada
 const pad2 = n => String(((n % 100) + 100) % 100).padStart(2, '0');
 const tempLabel = t => 'Temp. ' + pad2(t) + '-' + pad2(t + 1);    // ej: 2024 -> "Temp. 24-25"
+// Temporada "abierta": la reclasificación de cierre de manzanas se contabiliza en diciembre del año T+1
+// (glosa "DISTRIBUCION INGRESOS MANZANAS"). Si ese diciembre aún no ocurre, la temporada puede subir.
+const _hoy = new Date();
+const isTempAbierta = t => { const cierre = t + 1; return cierre > _hoy.getFullYear() || (cierre === _hoy.getFullYear() && (_hoy.getMonth() + 1) < 12); };
 const LINEA_COLOR = {
   'Cerezas':'#dc2626',
   'Cítricos':'#f59e0b',
@@ -429,9 +439,28 @@ function makeGlobalPills() {
     const b = document.createElement('button');
     b.className = 'pill px-4 py-1.5 rounded-full text-xs font-semibold ' + (y === state.year ? 'active' : 'bg-gray-100 text-gray-500');
     b.textContent = yLabel(y);
+    if (isTempAbierta(y)) {
+      b.title = 'Temporada abierta — reclasificación de cierre de manzanas pendiente (se contabiliza en diciembre ' + (y + 1) + ')';
+      const dot = document.createElement('span');
+      dot.textContent = ' •'; dot.style.color = (y === state.year) ? '#fff' : '#c2410c';
+      b.appendChild(dot);
+    }
     b.addEventListener('click', () => { state.year = y; state.month = 0; makeGlobalPills(); makeMonthSelect(); makeLineaSelect(); rerender(); });
     c.appendChild(b);
   });
+  updateTempAbiertaNote();
+}
+function updateTempAbiertaNote() {
+  const box = document.getElementById('temp-abierta-note');
+  if (!box) return;
+  if (isTempAbierta(state.year)) {
+    document.getElementById('temp-abierta-text').textContent =
+      'Temporada abierta: la reclasificación de cierre de manzanas se contabiliza en diciembre ' + (state.year + 1) +
+      ', por lo que los ingresos de ' + yLabel(state.year) + ' aún pueden aumentar. No es comparable al 100% con temporadas ya cerradas.';
+    box.classList.remove('hidden');
+  } else {
+    box.classList.add('hidden');
+  }
 }
 function makeMonthSelect() {
   const sel = document.getElementById('month-select-global');
