@@ -52,6 +52,16 @@ Packing **no** se analiza por año calendario (ene–dic) sino por **temporada d
 - **Costos:** cuentas `3%` con `debe > 0` → `sum(debe)`.
 - El EERR (`v_3_pack_cuenta`) usa exactamente la misma lógica que `v_3_pack_cc`, por lo que los totales cuadran al peso.
 
+### Reclasificación de cierre de manzanas (temporada corrida)
+
+La contadora contabiliza en **diciembre** un asiento de reclasificación (`TRASPASO`, glosa `DISTRIBUCION INGRESOS MANZANAS TEMP X`, cuentas `4102%` = servicios packing/frío/fruta terceros) que en realidad corresponde a la **temporada anterior** (la fruta se procesó en la campaña previa). Ej.: el asiento `2025121561` del 31/12/2025 ($584,7M) es de la campaña de manzanas de la **Temp 24-25**, pero al estar fechado en dic-2025 caería en Temp 25-26.
+
+Regla (angosta) aplicada en las **vistas** de Packing: si `mes_contable = 12` **y** `cuenta LIKE '4102%'` **y** `glosa_enc ILIKE 'DISTRIBUCION INGRESOS MANZANAS%'` → el **año de temporada = `ano_contable − 1`**. Se expone como columnas `ano_temp` / `mes_temp` en `v_3_pack_detalle`, y las vistas de agregación ya emiten el `ano` corrido.
+
+- El **Libro Mayor no se toca**: `fecha` y `ano_contable` reales siguen mostrando dic-2025 (concilia con contabilidad). Solo cambia la **asignación de temporada**.
+- KPIs, gráficos, **drill-down y descarga CSV** razonan sobre `ano_temp` / `mes_temp`, por lo que pantalla y CSV quedan consistentes: al descargar **Temp 24-25** aparece la línea reclasificada (con su fecha real 31/12/2025); en Temp 25-26 ya no.
+- Es el **único** asiento de este tipo en la base (no existe equivalente en Temp 22-23 ni 23-24). Cada temporada queda "abierta" en su reclasificación de cierre hasta el diciembre siguiente.
+
 ## Desarrollo
 
 Abrir `index.html` directamente en el navegador (lee Supabase con la anon key embebida).

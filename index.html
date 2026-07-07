@@ -813,15 +813,15 @@ async function loadMovimientos(cod, nombre) {
   document.getElementById('mov-table-wrap').style.display = 'none';
   document.getElementById('mov-panel').scrollIntoView({behavior:'smooth', block:'start'});
 
-  let query = db.from('3_chamonate_campo_pack_maqu_libro_mayor')
+  let query = db.from('3_chamonate_pack_detalle')
     .select('fecha,tipo_doc,numero,glosa_enc,n_cuenta,glosa_det,debe,haber,rut,nombre')
-    .eq('c_cc', cod)
+    .eq('cc_cod', cod)
     .order('fecha', {ascending:true}).order('numero', {ascending:true}).limit(1000);
   if (state.month > 0) {
-    query = query.eq('ano_contable', anoForTempMonth(state.year, state.month)).eq('mes_contable', state.month);
+    query = query.eq('ano_temp', anoForTempMonth(state.year, state.month)).eq('mes_temp', state.month);
   } else {
-    const t = state.year; // temporada oct->sep: (año t, meses 10-12) o (año t+1, meses 1-9)
-    query = query.or('and(ano_contable.eq.' + t + ',mes_contable.gte.10),and(ano_contable.eq.' + (t + 1) + ',mes_contable.lte.9)');
+    const t = state.year; // temporada oct->sep sobre ano_temp/mes_temp (con reclasificaciones ya corridas)
+    query = query.or('and(ano_temp.eq.' + t + ',mes_temp.gte.10),and(ano_temp.eq.' + (t + 1) + ',mes_temp.lte.9)');
   }
   const { data, error } = await query;
 
@@ -899,11 +899,12 @@ async function downloadDetalle(params) {
   while (true) {
     let q = db.from('3_chamonate_pack_detalle').select('*');
     if (tipo && tipo !== 'ambos') q = q.eq('tipo', tipo);
-    // ano = temporada (oct->sep). Traducir a año/mes contable real.
+    // ano = temporada (oct->sep). Se filtra por ano_temp/mes_temp (período de temporada,
+    // que corre las reclasificaciones de cierre de manzanas a la temporada que les corresponde).
     if (ano && mes && mes > 0) {
-      q = q.eq('ano_contable', anoForTempMonth(ano, mes)).eq('mes_contable', mes);
+      q = q.eq('ano_temp', anoForTempMonth(ano, mes)).eq('mes_temp', mes);
     } else if (ano) {
-      q = q.or('and(ano_contable.eq.' + ano + ',mes_contable.gte.10),and(ano_contable.eq.' + (ano + 1) + ',mes_contable.lte.9)');
+      q = q.or('and(ano_temp.eq.' + ano + ',mes_temp.gte.10),and(ano_temp.eq.' + (ano + 1) + ',mes_temp.lte.9)');
     }
     if (grupo) q = q.eq('cc_grupo', grupo);
     if (cod) q = q.eq('cc_cod', cod);
