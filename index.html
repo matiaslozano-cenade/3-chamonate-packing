@@ -386,20 +386,31 @@ function renderEERR(containerId, subId, scope, subLabel) {
   const res = ing - totalCos;
   const margen = ing > 0 ? res / ing * 100 : (totalCos > 0 ? -100 : 0);
   const clp = v => '$' + Math.round(v).toLocaleString('es-CL');
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   if (subId) { const e = document.getElementById(subId); if (e) e.textContent = subLabel || (periodoLabel() + ' · Fuente: Libro Mayor'); }
   let h = '<table class="w-full text-sm min-w-max"><tbody>' +
-    '<tr style="background:#eff6ff"><td class="py-2.5 px-3 font-bold text-blue-900">INGRESOS</td><td class="py-2.5 px-3 text-right font-extrabold text-blue-900" style="font-variant-numeric:tabular-nums">' + clp(ing) + '</td></tr>' +
+    '<tr style="background:#eff6ff"><td class="py-2.5 px-3 font-bold text-blue-900">INGRESOS</td><td class="py-2.5 px-3 text-right font-extrabold text-blue-900 dl-cell eerr-dl" data-tipo="ingresos" title="Descargar CSV ingresos" style="font-variant-numeric:tabular-nums">' + clp(ing) + ' <span class="dl-icon">📥</span></td></tr>' +
     '<tr><td class="pt-3 pb-1 px-3 font-bold text-gray-400 uppercase text-[10px] tracking-wider" colspan="2">Costos por cuenta (' + cuentas.length + ')</td></tr>';
   if (!cuentas.length) h += '<tr><td class="py-1.5 px-3 pl-6 text-gray-400" colspan="2">Sin costos en el período</td></tr>';
   cuentas.forEach(([n,v]) => {
-    h += '<tr class="border-b border-gray-50"><td class="py-1.5 px-3 pl-6 text-gray-600 text-xs">' + n + '</td><td class="py-1.5 px-3 text-right text-red-600 text-xs" style="font-variant-numeric:tabular-nums">(' + clp(v) + ')</td></tr>';
+    h += '<tr class="border-b border-gray-50"><td class="py-1.5 px-3 pl-6 text-gray-600 text-xs">' + n + '</td><td class="py-1.5 px-3 text-right text-red-600 text-xs dl-cell eerr-dl" data-tipo="costos" data-cuenta="' + esc(n) + '" title="Descargar CSV · ' + esc(n) + '" style="font-variant-numeric:tabular-nums">(' + clp(v) + ') <span class="dl-icon">📥</span></td></tr>';
   });
-  h += '<tr class="border-t-2 border-gray-200"><td class="py-2 px-3 font-bold text-red-700">TOTAL COSTOS</td><td class="py-2 px-3 text-right font-extrabold text-red-700" style="font-variant-numeric:tabular-nums">(' + clp(totalCos) + ')</td></tr>' +
+  h += '<tr class="border-t-2 border-gray-200"><td class="py-2 px-3 font-bold text-red-700">TOTAL COSTOS</td><td class="py-2 px-3 text-right font-extrabold text-red-700 dl-cell eerr-dl" data-tipo="costos" title="Descargar CSV · todos los costos" style="font-variant-numeric:tabular-nums">(' + clp(totalCos) + ') <span class="dl-icon">📥</span></td></tr>' +
     '<tr class="border-t-2 ' + (res>=0?'border-emerald-300':'border-red-300') + '" style="background:' + (res>=0?'#ecfdf5':'#fef2f2') + '"><td class="py-2.5 px-3 font-extrabold ' + (res>=0?'text-emerald-700':'text-red-700') + '">RESULTADO</td><td class="py-2.5 px-3 text-right font-extrabold ' + (res>=0?'text-emerald-700':'text-red-700') + '" style="font-variant-numeric:tabular-nums">' + clp(res) + '</td></tr>' +
     '<tr><td class="py-1.5 px-3 font-semibold text-gray-500">Margen</td><td class="py-1.5 px-3 text-right font-bold ' + (res>=0?'text-emerald-600':'text-red-600') + '">' + (ing>0?fPct(margen):'-') + '</td></tr>' +
     '</tbody></table>';
   const c = document.getElementById(containerId);
-  if (c) c.innerHTML = h;
+  if (c) {
+    c.innerHTML = h;
+    const sc = scope || {};
+    const dlGrupo = sc.grupo || state.fLinea || null, dlCod = sc.cod || null;
+    c.querySelectorAll('.eerr-dl').forEach(el => {
+      el.addEventListener('click', () => downloadDetalle({
+        tipo: el.dataset.tipo, ano: state.year, mes: state.month,
+        grupo: dlGrupo, cod: dlCod, cuenta: el.dataset.cuenta || null
+      }));
+    });
+  }
 }
 
 // Gráfico "Costos por cuenta" (barras por cuenta contable)
@@ -921,13 +932,14 @@ function showToast(msg, color) {
 function hideToast() { const t = document.getElementById('dl-toast'); if (t) t.style.opacity = '0'; }
 
 async function downloadDetalle(params) {
-  const {tipo, ano, mes, grupo, cod} = params;
+  const {tipo, ano, mes, grupo, cod, cuenta} = params;
   let allRows = [], from = 0;
   const PAGE = 1000;
   showToast('⏳ Descargando detalle...', PRIMARY);
   while (true) {
     let q = db.from('3_chamonate_pack_detalle').select('*');
     if (tipo && tipo !== 'ambos') q = q.eq('tipo', tipo);
+    if (cuenta) q = q.eq('n_cuenta', cuenta);
     // ano = temporada (oct->sep). Se filtra por ano_temp/mes_temp (período de temporada,
     // que corre las reclasificaciones de cierre de manzanas a la temporada que les corresponde).
     if (ano && mes && mes > 0) {
@@ -954,7 +966,8 @@ async function downloadDetalle(params) {
   const t = tipo || 'todo', y = ano ? ('Temp' + pad2(ano) + '-' + pad2(ano + 1)) : '';
   const m = (mes && mes > 0) ? ((MESES[mes] || String(mes)) + anoForTempMonth(ano, mes)) : '';
   const g = grupo ? grupo.replace(/\s+/g,'-') : '', c = cod || '';
-  const parts = ['PACK', t, c || g || 'todos', y, m].filter(Boolean);
+  const ctaTxt = cuenta ? cuenta.replace(/[^\wÁÉÍÓÚÑáéíóúñ]+/g,'-').replace(/^-+|-+$/g,'') : '';
+  const parts = ['PACK', t, c || g || 'todos', ctaTxt, y, m].filter(Boolean);
   exportCSV(allRows, parts.join('_') + '.csv');
   showToast('✅ ' + allRows.length + ' filas descargadas', '#059669');
   setTimeout(hideToast, 3000);
