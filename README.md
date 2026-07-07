@@ -62,6 +62,14 @@ Regla (angosta) aplicada en las **vistas** de Packing: si `mes_contable = 12` **
 - KPIs, gráficos, **drill-down y descarga CSV** razonan sobre `ano_temp` / `mes_temp`, por lo que pantalla y CSV quedan consistentes: al descargar **Temp 24-25** aparece la línea reclasificada (con su fecha real 31/12/2025); en Temp 25-26 ya no.
 - Es el **único** asiento de este tipo en la base (no existe equivalente en Temp 22-23 ni 23-24). Cada temporada queda "abierta" en su reclasificación de cierre hasta el diciembre siguiente.
 
+### Reclasificación de cuentas químicas (solo visualización/descarga)
+
+`FERTILIZANTES AL SUELO` (`3101000025`) y `PESTICIDAS` (`3101000027`) se muestran dentro de **`PRODUCTOS QUIMICOS`** (`3101000014`). Se unifica también la variante `3101000014.0` (mismo nombre, artefacto de importación) para que el EERR muestre **una sola línea** de Productos Químicos. Aplicado en las vistas `v_3_pack_cuenta` (agrupa) y `v_3_pack_detalle` (relabela `cuenta`/`n_cuenta` en drill-down y CSV). Es solo relabelado de costo: **no cambia el total de costos**, solo consolida la presentación. LM intacto.
+
+### Exclusión de Venta de Activo Fijo (leasing)
+
+`VENTA ACTIVO FIJO` (`4201000005`) se **excluye** de Packing en las 4 vistas (`WHERE cuenta NOT LIKE '4201000005%'`): no es ingreso operativo sino un leasing. Impacto: −$1,2M en Temp 24-25 y −$526,75M en Temp 25-26 (5 líneas de $105,35M en feb-2026, CC 860 Packing Cerezas). Desaparece de KPIs, EERR y descargas. LM intacto.
+
 ## Desarrollo
 
 Abrir `index.html` directamente en el navegador (lee Supabase con la anon key embebida).
