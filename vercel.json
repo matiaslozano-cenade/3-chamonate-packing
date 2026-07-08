@@ -2,5 +2,13 @@
   "framework": null,
   "buildCommand": null,
   "installCommand": null,
-  "outputDirectory": "."
+  "outputDirectory": ".",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": ".*\\.vercel\\.app" }],
+      "destination": "https://kpi-packing.chamonate.portalcenade.cl/:path*",
+      "permanent": true
+    }
+  ]
 }

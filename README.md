@@ -76,3 +76,7 @@ Regla (angosta) aplicada en las **vistas** de Packing: si `mes_contable = 12` **
 
 Abrir `index.html` directamente en el navegador (lee Supabase con la anon key embebida).
 </content>
+
+## Dominio
+
+URL oficial: **https://kpi-packing.chamonate.portalcenade.cl**. Cualquier acceso vía `*.vercel.app` redirige (308) al dominio oficial — configurado en `vercel.json` (`redirects` con condición `host`).
