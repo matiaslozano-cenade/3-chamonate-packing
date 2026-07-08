@@ -5,8 +5,24 @@
   "outputDirectory": ".",
   "redirects": [
     {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": ".*\\.vercel\\.app"
+        }
+      ],
+      "destination": "https://kpi-packing.chamonate.portalcenade.cl/",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": ".*\\.vercel\\.app" }],
+      "has": [
+        {
+          "type": "host",
+          "value": ".*\\.vercel\\.app"
+        }
+      ],
       "destination": "https://kpi-packing.chamonate.portalcenade.cl/:path*",
       "permanent": true
     }
