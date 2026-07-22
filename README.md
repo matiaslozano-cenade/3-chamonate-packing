@@ -36,6 +36,8 @@ General · Mensual · **Por Línea** · Por Centro.
 
 En el **Estado de Resultado por cuenta** (en todas las pestañas) cada monto es **clickeable para descargar su detalle**: el de **INGRESOS**, el de **cada cuenta de costo** y el de **TOTAL COSTOS**. La descarga respeta el scope activo (temporada, mes, línea, centro) y filtra `v_3_pack_detalle` por `n_cuenta`.
 
+El CSV incluye la columna **`proveedor`** (desde `n_auxiliar` del Libro Mayor). Presente en ~73% de las filas de costo; en remuneraciones y asientos internos viene vacío (no aplica proveedor).
+
 ## Temporada (octubre → septiembre) — particularidad clave
 
 Packing **no** se analiza por año calendario (ene–dic) sino por **temporada de 12 meses, del 1 de octubre al 30 de septiembre** (para no partir la campaña de cerezas nov–ene entre dos años). La temporada T va de **octubre del año T a septiembre del año T+1** y se etiqueta `Temp. YY-YY` (ej: `Temp. 24-25` = oct 2024 → sep 2025).
